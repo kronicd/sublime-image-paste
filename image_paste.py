@@ -27,6 +27,10 @@ class ImagePasteCommand(sublime_plugin.TextCommand):
         settings = sublime.load_settings("image-paste.sublime-settings")
         variables = self.view.window().extract_variables()
 
+        if "file_path" not in variables:
+            sublime.status_message("Could not paste image: please save file first")
+            return
+
         now = datetime.now()
         almost_now = datetime(
             year=now.year,
@@ -38,14 +42,13 @@ class ImagePasteCommand(sublime_plugin.TextCommand):
         )
         name = almost_now.isoformat().replace(":", "-").replace("T", "-")
 
-        destination_folder = Path(
-            sublime.expand_variables(settings.get("folder"), variables)
-        )
-        if not destination_folder.is_dir():
-            print(
-                "Could not paste image: "
-                "destination is not a folder: {}".format(destination_folder)
+        try:
+            destination_folder = Path(
+                sublime.expand_variables(settings.get("folder"), variables)
             )
+            destination_folder.mkdir(parents=True, exist_ok=True)
+        except Exception as e:
+            sublime.status_message("Could not create destination folder: {}".format(e))
             return
 
         destination = destination_folder / "{}{}.{}".format(
@@ -66,5 +69,10 @@ class ImagePasteCommand(sublime_plugin.TextCommand):
             subprocess.check_output(command)
             for region in self.view.sel():
                 self.view.insert(edit, region.begin(), text_to_insert)
+        except FileNotFoundError:
+            sublime.error_message(
+                "Could not paste image: 'pngpaste' not found. "
+                "Please install it (e.g., brew install pngpaste)"
+            )
         except subprocess.CalledProcessError:
             print("Paste failed. Was there no image in the clipboard?")
